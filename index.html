@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="description" content="Voedselkaart Zwolle - Ontdek voedselspots in Zwolle">
+    <title>Voedselkaart Zwolle</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f5f5f5;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+
+        header h1 {
+            font-size: 1.25rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        #map {
+            flex: 1;
+            width: 100%;
+        }
+
+        .leaflet-popup-content {
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-icon {
+            font-size: 2rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: #e0e0e0;
+            color: #000;
+        }
+
+        .modal-close:active {
+            transform: scale(0.95);
+        }
+
+        .modal-description {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-address {
+            display: block;
+            background: #f0f0f0;
+            padding: 1rem;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #2c3e50;
+            font-weight: 500;
+            transition: background 0.2s;
+            text-align: center;
+            border: 2px solid transparent;
+        }
+
+        .modal-address:hover {
+            background: #e0e0e0;
+            border-color: #2c3e50;
+        }
+
+        .modal-address:active {
+            transform: scale(0.98);
+        }
+
+        /* Location Control */
+        .leaflet-control-location {
+            background: white;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .leaflet-control-location:hover {
+            background: #f0f0f0;
+        }
+
+        /* Touch-friendly adjustments */
+        @media (max-width: 600px) {
+            header h1 {
+                font-size: 1rem;
+            }
+
+            .modal-content {
+                padding: 1.5rem;
+                width: 95%;
+                border-radius: 8px;
+            }
+        }
+
+        /* Prevent zoom on double tap */
+        input,
+        button,
+        a {
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Voedselkaart Zwolle</h1>
+    </header>
+
+    <div id="map"></div>
+
+    <!-- POI Detail Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()" title="Close">✕</button>
+            <div class="modal-header">
+                <div class="modal-icon" id="modalIcon"></div>
+                <h2 class="modal-title" id="modalTitle"></h2>
+            </div>
+            <p class="modal-description" id="modalDescription"></p>
+            <a id="modalAddress" class="modal-address" target="_blank" rel="noopener noreferrer">📍 View on Google
+                Maps</a>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+    <script>
+        // ============================================
+        // POI Data
+        // ============================================
+        const poiData = [
+            {
+                id: 1,
+                name: "Odin",
+                lat: 52.51085754320558,
+                lng: 6.090675103876868,
+                type: "market",
+                description: "Biologisch biodynamische supermarkt met een breed assortiment (Nederlandse) duurzame producten.",
+                address: "Potgietersingel 1, 8011 NA Zwolle"
+            },
+            {
+                id: 2,
+                name: "Stadsbakker Zwolle",
+                lat: 52.51089283356952,
+                lng: 6.090592958313376,
+                type: "bread",
+                description: "Ambachtelijke bakker met vele soorten brood en patisserie.",
+                address: "Blijmarkt 4, 8011 NE Zwolle"
+            },
+            {
+                id: 3,
+                name: "De Buurman VersLokaal",
+                lat: 52.51402375825777, 
+                lng: 6.093487018536729,
+                type: "market",
+                description: "Lokale seizoens-producten van boeren uit de regio.",
+                address: "Vispoortenplas 4, 8011 TH Zwolle"
+            },
+            {
+                id: 4,
+                name: "Ekoplaza",
+                lat: 52.51558417335049, 
+                lng: 6.1060719363757245,
+                type: "market",
+                description: "Uitgebreide biologische en fairtrade supermarkt.",
+                address: "Vechtstraat 50, 8021 AX Zwolle"
+            },
+            {
+                id: 5,
+                name: "Armeense bakkerij",
+                lat: 52.507873787420024, 
+                lng: 6.099365904275953,
+                type: "bread",
+                description: "Armeense broden zoals Lavash, lekkernijen en streekproducten.",
+                address: "Assendorperstraat 48, 8012 CA Zwolle"
+            },
+            {
+                id: 6,
+                name: "de Wijndragers",
+                lat: 52.51439339865335, 
+                lng: 6.099417598032279,
+                type: "herbs",
+                description: "Speciaalzaak voor dressings en mosterd.",
+                address: "Diezerpoortenplas 7, 8011 VV Zwolle"
+            },
+            {
+                id: 7,
+                name: "Piccolini",
+                lat: 52.51002608328144, 
+                lng: 6.0952524415551865,
+                type: "herbs",
+                description: "Italiaanse delicatessen zoals olijven, kazen, pastas, wijnen.",
+                address: "Koestraat 46, 8011 PD Zwolle"
+            },
+            {
+                id: 8,
+                name: "Everyday Bread",
+                lat: 52.51447203186826,  
+                lng: 6.099441244599967,
+                type: "bread",
+                description: "Bakkerij met no-nonsense broden en gebak.",
+                address: "Diezerpoortenplas 9, 8011 VV Zwolle"
+            },
+            {
+                id: 9,
+                name: "Specialiteitenhuys Hulsebosch",
+                lat: 52.51467528641422,   
+                lng: 6.0933396192192015,
+                type: "cheese",
+                description: "Delicatessen zoals tapas, kazen, chocolade, broden en wijn.",
+                address: "Dijkstraat 1, 8011 XS Zwolle"
+            },
+            {
+                id: 10,
+                name: "Özen Food Market",
+                lat: 52.51548872505058,    
+                lng: 6.1026955235766875,
+                type: "market",
+                description: "Uitgebreide toko met groente/fruit, kruiden, salades, gebak en meer.",
+                address: "Thomas a Kempisstraat 25, 8021 BH Zwolle"
+            },
+            {
+                id: 11,
+                name: "Turkse Bakkerij Mentes",
+                lat: 52.51552963249057,     
+                lng: 6.10278824453038,
+                type: "bread",
+                description: "Bakker met Turkse specialiteiten zoals platbrood, pide, lahmcun, baklava en koekjes.",
+                address: "Thomas a Kempisstraat 27, 8021 BH Zwolle"
+            },
+            {
+                id: 12,
+                name: "Salah Uddin Supermarkt",
+                lat: 52.515689055659145,    
+                lng: 6.1055117968444765,
+                type: "herbs",
+                description: "Indiaase toko met kruiden, indiaase specialiteiten.",
+                address: "Vechtstraat 30, 8021 AX Zwolle"
+            },
+            {
+                id: 13,
+                name: "Simon Lévelt",
+                lat: 52.511081072406334,   
+                lng: 6.090706510999454,
+                type: "coffee",
+                description: "Koffie en Thee specialiteiten.",
+                address: "Kamperstraat 2, 8011 LM Zwolle"
+            },
+            {
+                id: 14,
+                name: "Chocolate Company",
+                lat: 52.51171377361957,   
+                lng: 6.094927152146031,
+                type: "sweet",
+                description: "Chocolade in alle vormen en maten, bonbons etc.",
+                address: "Oude Vismarkt 42, 8011 TB Zwolle"
+            },
+            {
+                id: 15,
+                name: "Dille & Kamille",
+                lat: 52.51364598581944,
+                lng: 6.097121517382209,
+                type: "herbs",
+                description: "Aanbod in kruiden, sauzen, dips en jams.",
+                address: "Eiland 42, 8011 XR Zwolle"
+            },
+            {
+                id: 16,
+                name: "Albert Heijn",
+                lat: 52.5135301790347, 
+                lng: 6.086134815804645,
+                type: "supermarket",
+                description: "",
+                address: "Katwolderplein 1, 8011 BT Zwolle"
+            },
+            {
+                id: 17,
+                name: "Jumbo",
+                lat: 52.510104208656294, 
+                lng: 6.084186418459008,
+                type: "supermarket",
+                description: "",
+                address: "Veemarkt 20, 8011 AH Zwolle"
+            },
+            {
+                id: 18,
+                name: "Albert Heijn",
+                lat: 52.516297137282926, 
+                lng: 6.100230874204299,
+                type: "supermarket",
+                description: "",
+                address: "Klein Grachtje 16, 8021 JA Zwolle"
+            },
+            {
+                id: 19,
+                name: "ALDI",
+                lat: 52.51722065419627, 
+                lng: 6.106219206256144,
+                type: "supermarket",
+                description: "",
+                address: "Bisschop Willebrandlaan 28, 8021 GA Zwolle"
+            },
+            {
+                id: 20,
+                name: "Spar City",
+                lat: 52.51180215346191, 
+                lng: 6.09513245937397,
+                type: "supermarket",
+                description: "",
+                address: "Oude Vismarkt 46, 8011 TB Zwolle"
+            }
+        ];
+
+        // ============================================
+        // SVG Icons
+        // ============================================
+        const icons = {
+            market: createSvgIcon('#e74c3c', '🏪'),
+            supermarket: createSvgIcon('#c2c6b1', '🛒'),
+            herbs: createSvgIcon('#27ae60', '🌿'),
+            bread: createSvgIcon('#f39c12', '🍞'),
+            sweet: createSvgIcon('#e02828', '🍫'),
+            cheese: createSvgIcon('#f1c40f', '🧀'),
+            restaurant: createSvgIcon('#e67e22', '🍽️'),
+            coffee: createSvgIcon('#795548', '☕'),
+            user: createSvgIcon('#3498db', '⊙')
+        };
+
+        function createSvgIcon(color, emoji) {
+            const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><path d='M20 0 Q28 8 28 15 Q28 25 20 40 Q12 25 12 15 Q12 8 20 0 Z' fill='${color}' stroke='white' stroke-width='2'/><text x='20' y='16' font-size='18' text-anchor='middle' dominant-baseline='middle'>${emoji}</text></svg>`;
+
+            return L.icon({
+                iconUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 40],
+                popupAnchor: [0, -40]
+            });
+        }
+
+        // Create default GPS icon (crosshair)
+        function createGpsIcon() {
+            const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#3498db' stroke-width='2'><circle cx='12' cy='12' r='3'/><circle cx='12' cy='12' r='8'/><path d='M12 1v4M12 19v4M1 12h4M19 12h4'/></svg>`;
+            return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+        }
+
+        // ============================================
+        // Map Initialization
+        // ============================================
+        const map = L.map('map').setView([52.511847, 6.092144], 15);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19,
+            minZoom: 2
+        }).addTo(map);
+
+        let userMarker = null;
+        let poiMarkers = [];
+
+        // ============================================
+        // Add POI Markers
+        // ============================================
+        function addPoiMarkers() {
+            poiData.forEach(poi => {
+                const marker = L.marker([poi.lat, poi.lng], {
+                    icon: icons[poi.type] || icons.market
+                }).addTo(map);
+
+                marker.on('click', () => openModal(poi));
+                poiMarkers.push(marker);
+            });
+        }
+
+        // ============================================
+        // User Location
+        // ============================================
+        function locateUser() {
+            map.locate({ setView: true, maxZoom: 15, watch: false });
+        }
+
+        map.on('locationfound', (e) => {
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+
+            userMarker = L.marker([e.latlng.lat, e.latlng.lng], {
+                icon: icons.user
+            }).addTo(map);
+
+            userMarker.bindPopup('Your Location').openPopup();
+        });
+
+        map.on('locationerror', () => {
+            alert('Unable to get your location. Please enable location services.');
+        });
+
+        // Add location button to map
+        const locationControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: () => {
+                const div = L.DomUtil.create('button', 'leaflet-control-location');
+                div.title = 'Find my location';
+                div.innerHTML = '<img src="' + createGpsIcon() + '" style="width: 20px; height: 20px;">';
+                div.style.fontSize = '1.25rem';
+                div.style.width = '36px';
+                div.style.height = '36px';
+                div.style.display = 'flex';
+                div.style.alignItems = 'center';
+                div.style.justifyContent = 'center';
+                div.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    locateUser();
+                });
+                return div;
+            }
+        });
+
+        map.addControl(new locationControl());
+
+        // ============================================
+        // Modal Functions
+        // ============================================
+        function openModal(poi) {
+            const emojiMap = {
+                market: '🏪',
+                herbs: '🌿',
+                bread: '🍞',
+                cheese: '🧀',
+                restaurant: '🍽️',
+                coffee: '☕'
+            };
+
+            document.getElementById('modalIcon').textContent = emojiMap[poi.type] || '📍';
+            document.getElementById('modalTitle').textContent = poi.name;
+            document.getElementById('modalDescription').textContent = poi.description;
+
+            const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(poi.address)}`;
+            const addressLink = document.getElementById('modalAddress');
+            addressLink.href = mapsUrl;
+            addressLink.textContent = `📍 ${poi.address}`;
+
+            document.getElementById('modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        // Close modal on background click
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') closeModal();
+        });
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // ============================================
+        // Initialize
+        // ============================================
+        map.whenReady(() => {
+            addPoiMarkers();
+            locateUser();
+        });
+
+    </script>
+</body>
+
+</html>
